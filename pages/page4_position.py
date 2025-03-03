@@ -1,9 +1,9 @@
 import os.path
 from datetime import datetime, timedelta, date
 import json
-import logging
-
-logger = logging.getLogger('DashMonitor_LivePosition')
+# import logging
+#
+# logger = logging.getLogger('DashMonitor_LivePosition')
 
 import pandas as pd
 import dash
@@ -14,39 +14,24 @@ import dash_bootstrap_components as dbc
 
 dash.register_page(
     __name__,
-    name='LivePosition'
+    name='LivePosition2'
 )
 
 
 # =====================    参数配置   ============================= #
 # 【1】 实时持仓 配置
-L_POSITION_CHECKING_LIST = ["AIO", "SPA", "PA", "FastTrend", "LongShort"]
+L_POSITION_CHECKING_LIST = ["SPA", "PA", ]
 D_LIVE_POSITION_FILE_PATH = {
-    "AIO": {
+    "SPA": {
         "data": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\AIO\data.csv',
         "update": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\AIO\_update.csv',
-        "sort": "Paper.AIO"
-    },
-    "SPA": {
-        "data": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\S8\data.csv',
-        "update": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\S8\_update.csv',
-        "sort": "Paper.SPA"
+        "sort": "Paper.S8PA"
     },
     "PA": {
         "data": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\PA\data.csv',
         "update": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\PA\_update.csv',
         "sort": "Paper.PA"
     },
-    "FastTrend": {
-        "data": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\FastTrend\data.csv',
-        "update": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\FastTrend\_update.csv',
-        "sort": "Paper.FT"
-    },
-    "LongShort": {
-        "data": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\LongShort\data.csv',
-        "update": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\LongShort\_update.csv',
-        "sort": "Paper.LS"
-    }
 }
 
 
@@ -78,24 +63,14 @@ def layout():
                 children=[
                     dbc.Row(
                         children=[
-                            dbc.Col(dcc.Graph(id='position-graph-AIO'))
-                        ],
-                    ),
-                    dbc.Row(
-                        children=[
-                            dbc.Col(dcc.Graph(id='position-graph-SPA')),
-                            dbc.Col(dcc.Graph(id='position-graph-FastTrend')),
-                        ],
-                    ),
-                    dbc.Row(
-                        children=[
-                            dbc.Col(dcc.Graph(id='position-graph-PA')),
-                            dbc.Col(dcc.Graph(id='position-graph-LongShort')),
+                            dbc.Col(dcc.Graph(id='position-graph-v-SPA')),
+                            dbc.Col(dcc.Graph(id='position-graph-v-PA')),
+                            # dbc.Col(dcc.Graph(id='position-graph-v-PA2')),
                         ],
                     ),
                     dcc.Interval(
                         # 定时器，60秒
-                        id='interval-component-position-graph',
+                        id='interval-component-position-graph-v',
                         interval=1000 * 60,  # in milliseconds
                         n_intervals=0
                     ),
@@ -144,10 +119,10 @@ def layout():
             html.Div(
                 children=[
                     # html.H4("AIO信号换月"),  # 标题
-                    html.Div(id='signal-trading-tickers-check'),  # 输出，
+                    html.Div(id='signal-trading-tickers-check-2'),  # 输出，
                     dcc.Interval(
                         # 定时器，30分钟
-                        id='interval-component-trading-tickers-check',
+                        id='interval-component-trading-tickers-check-2',
                         interval=1000 * 60 * 30,
                         n_intervals=0
                     )
@@ -177,12 +152,10 @@ def layout():
 # 【1】
 # Multiple components can update everytime interval gets fired.
 @callback(
-    Output(component_id='position-graph-AIO', component_property='figure'),
-    Output(component_id='position-graph-SPA', component_property='figure'),
-    Output(component_id='position-graph-PA', component_property='figure'),
-    Output(component_id='position-graph-FastTrend', component_property='figure'),
-    Output(component_id='position-graph-LongShort', component_property='figure'),
-    Input(component_id='interval-component-position-graph', component_property='n_intervals'))
+    Output(component_id='position-graph-v-SPA', component_property='figure'),
+    Output(component_id='position-graph-v-PA', component_property='figure'),
+    # Output(component_id='position-graph-v-PA2', component_property='figure'),
+    Input(component_id='interval-component-position-graph-v', component_property='n_intervals'))
 def update_position_graph_in_interval(n):
     #
     l_position_figs = []
@@ -199,12 +172,12 @@ def update_position_graph_in_interval(n):
         l_columns = df.columns.to_list()
         fig_title = f"{name} _ {str(len(l_columns))} _ {data_update_dt.strftime('%H:%M:%S')}"
         if name == "AIO":
-            fig = _gen_position_fig(df, fig_title, width=900)
+            fig = _gen_position_fig(df, fig_title, width=400, height=1200)
         else:
-            fig = _gen_position_fig(df, fig_title, width=700)
+            fig = _gen_position_fig(df, fig_title, width=400, height=1200)
         l_position_figs.append(fig)
 
-        logger.info(f'update position graph, {fig_title}')
+        print(f'update position graph, {fig_title}')
     return l_position_figs
 
 
@@ -239,7 +212,7 @@ def _get_position_update_time(p) -> datetime:
 
 
 # 生成 信号持仓图
-def _gen_position_fig(df: pd.DataFrame, fig_title: str, width=700, height=250):
+def _gen_position_fig(df: pd.DataFrame, fig_title: str, width=250, height=1000):
     l_index_sorted_by_value = df.index.to_list()
     l_columns = df.columns.to_list()
     fig = go.Figure()
@@ -249,27 +222,30 @@ def _gen_position_fig(df: pd.DataFrame, fig_title: str, width=700, height=250):
     if len(l_columns) == 0:
         return fig
 
-    _max_y = 0
+    _max_x = 0
     # _max_y = max([max(df.values), abs(min(df.values))])
     for trader in l_columns:
-        y = list(df.loc[:, trader].values).copy()
+        x = list(df.loc[:, trader].values).copy()
+        y_sum_long = round(sum([_ for _ in x if _ > 0]) / 1000000, 1)
+        y_sum_short = round(sum([_ for _ in x if _ < 0]) / 1000000, 1)
+        _trader_name_with_value = f'{trader}  {y_sum_long}  {y_sum_short}'
         fig.add_trace(
             go.Scatter(
-                x=l_index_sorted_by_value,
-                y=y,
+                x=x,
+                y=l_index_sorted_by_value,
                 mode='lines',
-                name=trader,
+                name=_trader_name_with_value,
                 line=dict(
                     width=1,
                 ),
             ))
-        if len(y) == 0:
+        if len(x) == 0:
             continue
-        _max_y_new = max([abs(_) for _ in y])
+        _max_x_new = max([abs(_) for _ in x])
         # print(_max_y_new, _max_y, trader)
-        if _max_y_new > _max_y:
-            _max_y = _max_y_new
-    _y_size = round((_max_y * 1.1), -len(str(int(_max_y))) + 2)
+        if _max_x_new > _max_x:
+            _max_x = _max_x_new
+    _x_size = round((_max_x * 1.1), -len(str(int(_max_x))) + 2)
 
     fig.update_xaxes(
         # x轴名称
@@ -287,34 +263,45 @@ def _gen_position_fig(df: pd.DataFrame, fig_title: str, width=700, height=250):
         # ticks='inside',
         tickwidth=1,
         tickfont=dict(
-            size=10
+            size=12
         ),
         # ticklen=10,
         # tickcolor='red',
         # tickmode='array',
         # tickvals=l_index_sorted_by_value,
         # ticktext=l_index_sorted_by_value,
-        tickangle=-90,
+        # tickangle=-90,
         # 网格线
         showgrid=True,
         gridwidth=1,
         gridcolor='gray',
         # gridcolor='Black',
         griddash='dot',
-        # zeroline=False,
+        #
+        zeroline=True,
+        zerolinecolor='gray',
+        zerolinewidth=0.5,
     )
     fig.update_yaxes(
         showline=True,
         linecolor='black',
         linewidth=1,
         mirror=True,
-        title='',
+        # title='',
+        # 标签
+        tickfont=dict(
+            size=10
+        ),
         # 网格线
         showgrid=True,
         gridwidth=1,
         gridcolor='gray',
         griddash='dot',
-        zeroline=False,
+        #
+        # zeroline=True,
+        # zerolinecolor='black',
+        # zerolinewidth=0.5,
+
     )
     fig.update_layout(
         # paper_bgcolor='rgba(0,0,0,0)',
@@ -328,29 +315,41 @@ def _gen_position_fig(df: pd.DataFrame, fig_title: str, width=700, height=250):
             x=0.5,
             xanchor='center',
             yanchor='top',
+
         ),
         # margin=dict(l=40, r=0, t=40, b=30),
-        margin=dict(l=0, r=0, t=20, b=50),
-        yaxis_range=[-_y_size, _y_size],
+        # margin=dict(l=0, r=0, t=20, b=20),
+        margin=dict(l=10, r=10, t=20, b=0),
+        # yaxis_range=[-_y_size, _y_size],
+        xaxis_range=[-_x_size, _x_size],
+        
+        
         # 图例位置
+        # 底部
         legend=dict(
-            # orientation="h",  # 开启水平显示
-            # yanchor="bottom",  # y轴顶部  bottom top
-            # y=0,
-            # xanchor="left",  # x轴靠左
-            # 3=0,
+            #orientation="h",  # 开启水平显示
+            #yanchor="top",  # y轴顶部  bottom top
+            #y=-0.05,
+            #y=0.95,
+            #xanchor="left",  # x轴靠左
+            #x=0,
+            #xanchor="right",  # x轴靠左
+            #x=1,
             # itemsizing='trace',   # trace 和 constant 两种设置, trace 小图形
-            font=dict(size=10),
+            #font=dict(size=10),
             traceorder="normal",
         ),
     )
+    
+    # fig.legend(loc='upper left',)
+    
     return fig
 
 
 # 【2】 AIO信号的持仓ticker变化（合约换月）
 @callback(
-    Output(component_id='signal-trading-tickers-check', component_property='children'),
-    Input('interval-component-trading-tickers-check', 'n_intervals'))
+    Output(component_id='signal-trading-tickers-check-2', component_property='children'),
+    Input('interval-component-trading-tickers-check-2', 'n_intervals'))
 def interval_update_activate_tickers_check(n):
     path_ticker_changed = D_SIGNAL_ACTIVATE_TICKER_PATH['ticker_changed']
     d_ticker_changed_info = json.loads(open(path_ticker_changed).read())

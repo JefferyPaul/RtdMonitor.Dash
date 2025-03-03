@@ -1,12 +1,8 @@
 import os
-from datetime import datetime, timedelta
 import logging
+import json
 from typing import List
 
-logger = logging.getLogger('DashMonitor_TickerInfo')
-
-
-from helper.tp_WarningBoard.warning_board import run_warning_board
 
 import pandas as pd
 import dash
@@ -17,7 +13,7 @@ import dash_bootstrap_components as dbc
 
 dash.register_page(
     __name__,
-    name='3_TickerInfo'
+    name='TickerInfo'
 )
 
 
@@ -29,10 +25,10 @@ GTI_DATA_HEADER = [
     "product",
     "commission_on_rate",
     "commission_per_share",
+    "flat_today_discount",
+    "margin",
     "point_value",
     "min_move",
-    "margin",
-    "flat_today_discount",
     "ticker",
     "date",
 ]
@@ -41,44 +37,121 @@ GTI_DATA_HEADER = [
 def layout():
     _ = html.Div(
         children=[
-            html.H6('Ticker Info'),
+            html.H5('( 20:30 更新 )'),
+            html.H5('最新变化:'),
+            dash_table.DataTable(
+                id="changed-gti-data",
+                columns=[{"name": _, "id": _} for _ in GTI_DATA_HEADER],
+                fixed_rows={
+                    'headers': True
+                },
+                style_cell={
+                    'minWidth': 100, 'maxWidth': 200, 'width': 150
+                },
+                style_as_list_view=True,  #
+                sort_action="native",  # 排序
+            ),
 
-            html.Div(
-                children=[
-                    dash_table.DataTable(
-                        id="newest-gti-data",
-                        columns=[{"name": _, "id": _} for _ in GTI_DATA_HEADER],
-                        fixed_rows={'headers': True},
-                        page_action='none',
-                        style_table={
-                            'height': '2000px', 'overflowY': 'auto'
-                        },
-                        style_cell={
-                            'minWidth': 120, 'maxWidth': 120, 'width': 120
-                        },
-                        style_as_list_view=True,  #
-                        sort_action="native",  # 排序
-                        selected_cells='row',
-                    ),
-                    dcc.Interval(
-                        # 定时器，60分钟
-                        id='interval-component-newest-gti_table',
-                        interval=1000 * 60 * 60,  # in milliseconds
-                        n_intervals=0
-                    ),
-                ],
-            )
-        ]
+            html.H5('有特殊设定的品种:'),
+            dash_table.DataTable(
+                id="nonstandard-gti-data",
+                columns=[{"name": _, "id": _} for _ in GTI_DATA_HEADER],
+                fixed_rows={
+                    'headers': True
+                },
+                style_cell={
+                    'minWidth': 100, 'maxWidth': 200, 'width': 150
+                },
+                style_as_list_view=True,  #
+                sort_action="native",  # 排序
+            ),
+
+            html.H5('Ticker Info'),
+            dash_table.DataTable(
+                id="newest-gti-data",
+                columns=[{"name": _, "id": _} for _ in GTI_DATA_HEADER],
+                fixed_rows={
+                    'headers': True
+                },
+                # page_action='none',
+                # style_table={
+                #     'height': '2000px', 'overflowY': 'auto'
+                # },
+                style_cell={
+                    'minWidth': 100, 'maxWidth': 200, 'width': 150
+                },
+                style_as_list_view=True,  #
+                sort_action="native",  # 排序
+                # selected_cells='row',
+            ),
+            dcc.Interval(
+                # 定时器，60分钟
+                id='interval-component',
+                interval=1000 * 60 * 60,  # in milliseconds
+                n_intervals=0
+            ),
+        ],
     )
     return _
 
 
 @callback(
     Output(component_id='newest-gti-data', component_property='data'),
-    Input(component_id='interval-component-newest-gti_table', component_property='n_intervals'))
+    Input(component_id='interval-component', component_property='n_intervals'))
 def interval_update_newest_gti(n):
     df = pd.read_csv(PATH_NEWEST_GTI_DATA_FILE)
     return df.to_dict('records')
+
+
+@callback(
+    Output(component_id='changed-gti-data', component_property='data'),
+    Output(component_id='nonstandard-gti-data', component_property='data'),
+    Input(component_id='interval-component', component_property='n_intervals'))
+def interval_update_checked_gti(n):
+    d_data = json.loads(open(PATH_GTI_DATA_CHANGED_FILE).read(), )
+    l_data_changed = d_data['Changed']
+    l_data_nonstandard = d_data['Nonstandard']
+
+    # 特殊设定
+    # if l_data_nonstandard:
+    #     l_data_nonstandard = [
+    #         __
+    #         for _ in l_data_nonstandard
+    #         for __ in _
+    #     ]
+    l_data_changed_mix = list()
+    if l_data_changed:
+        for _data in l_data_changed:
+            _new_data = _data[0]
+            _standard_data = _data[1]
+            for _key in [
+                "point_value", "min_move", "commission_on_rate", "commission_per_share",
+                "flat_today_discount", "margin"
+            ]:
+                _new_value = float(_new_data[_key])
+                _old_value = float(_standard_data[_key])
+                if _new_value != _old_value:
+                    _new_data[_key] = f'{str(_new_value)}  [{str(_old_value)}]'
+            l_data_changed_mix.append(_new_data)
+
+    l_data_nonstandard_mix = list()
+    if l_data_nonstandard:
+        for _data in l_data_nonstandard:
+            _new_data = _data[0]
+            _standard_data = _data[1]
+            for _key in [
+                "point_value", "min_move", "commission_on_rate", "commission_per_share",
+                "flat_today_discount", "margin"
+            ]:
+                _new_value = float(_new_data[_key])
+                _old_value = float(_standard_data[_key])
+                if _new_value != _old_value:
+                    _new_data[_key] = f'{str(_new_value)}  [{str(_old_value)}]'
+            l_data_nonstandard_mix.append(_new_data)
+
+    return l_data_changed_mix, l_data_nonstandard_mix
+
+
 
     # with open(PATH_NEWEST_GTI_DATA_FILE) as f:
     #     l_lines = f.readlines()

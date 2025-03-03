@@ -1,9 +1,12 @@
 import os.path
 from datetime import datetime, timedelta, date
 import json
-import logging
+from typing import Dict, List
+from collections import defaultdict
+from numerize import numerize
+# import logging
 
-logger = logging.getLogger('DashMonitor_LivePosition')
+# logger = logging.getLogger('DashMonitor_LivePosition')
 
 import pandas as pd
 import dash
@@ -14,38 +17,46 @@ import dash_bootstrap_components as dbc
 
 dash.register_page(
     __name__,
-    name='1_LivePosition'
+    name='LivePosition'
 )
 
 
 # =====================    参数配置   ============================= #
 # 【1】 实时持仓 配置
-L_POSITION_CHECKING_LIST = ["AIO", "SPA", "PA", "FastTrend", "LongShort"]
+
+L_POSITION_CHECKING_LIST = ["SPA", "PA",]
 D_LIVE_POSITION_FILE_PATH = {
-    "AIO": {
-        "data": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\AIO\data.csv',
-        "update": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\AIO\_update.csv',
-        "sort": "Paper.AIO"
-    },
     "SPA": {
-        "data": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\S8\data.csv',
-        "update": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\S8\_update.csv',
-        "sort": "Paper.SPA"
+        "data": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\AIO\data.csv',
+        "grouped": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\AIO\data_grouped.csv',
+        "update": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\AIO\_update.csv',
+        "sort": "Paper.S8PA"
     },
     "PA": {
         "data": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\PA\data.csv',
+        "grouped": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\PA\data_grouped.csv',
         "update": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\PA\_update.csv',
         "sort": "Paper.PA"
     },
-    "FastTrend": {
-        "data": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\FastTrend\data.csv',
-        "update": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\FastTrend\_update.csv',
-        "sort": "Paper.FT"
+    """
+    "PA2": {
+        "data": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\PA2\data.csv',
+        "update": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\PA2\_update.csv',
+        "sort": "Paper.PA2"
     },
+    """
+    
+    """
     "LongShort": {
         "data": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\LongShort\data.csv',
         "update": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\LongShort\_update.csv',
         "sort": "Paper.LS"
+    },
+    """
+    "Call220K": {
+        "data": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\Call220K\data.csv',
+        "update": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\Call220K\_update.csv',
+        "sort": ""
     }
 }
 
@@ -73,25 +84,29 @@ def layout():
     _ = html.Div(
         children=[
             # [1] 产品实时持仓对比图
-            html.H6('Live Position'),  # 标题
+            html.H6('Live Position   ( 交易时段 每隔2分钟刷新一次 )'),  # 标题
             html.Div(
-                children=[
-                    dbc.Row(
+                children=[                    
+                    dbc.Col(
                         children=[
-                            dbc.Col(dcc.Graph(id='position-graph-AIO'))
-                        ],
+                            dbc.Row(dcc.Graph(id='position-graph-SPA')),
+                            dbc.Row(dcc.Graph(id='position-graph-PA')),
+                            # dbc.Row(
+                            #     children=[
+                            #         dbc.Col(dcc.Graph(id='position-graph-SPA')),
+                            #     ],
+                            # ),
+                            # dbc.Row(
+                            #     children=[
+                            #         dbc.Col(dcc.Graph(id='position-graph-PA')),                            
+                            #         # dbc.Col(dcc.Graph(id='position-graph-PA2')),
+                            #         # dbc.Col(dcc.Graph(id='position-graph-LongShort')),
+                            #     ],
+                            # ),
+                        ],                         
                     ),
-                    dbc.Row(
-                        children=[
-                            dbc.Col(dcc.Graph(id='position-graph-SPA')),
-                            dbc.Col(dcc.Graph(id='position-graph-FastTrend')),
-                        ],
-                    ),
-                    dbc.Row(
-                        children=[
-                            dbc.Col(dcc.Graph(id='position-graph-PA')),
-                            dbc.Col(dcc.Graph(id='position-graph-LongShort')),
-                        ],
+                    dbc.Col(
+                        dcc.Graph(id='position-graph-grouped'),   
                     ),
                     dcc.Interval(
                         # 定时器，60秒
@@ -99,45 +114,24 @@ def layout():
                         interval=1000 * 60,  # in milliseconds
                         n_intervals=0
                     ),
-                ],
-            ),
-
-            # html.H4('实时持仓'),  # 标题
-            # # 排版方式 2：
-            # # html.Div(
-            # #     children=[
-            # #         html.Div(dcc.Graph(id='position-graph-AIO')),
-            # #         html.Div(
-            # #             children=[
-            # #                 dcc.Graph(id='position-graph-SPA'),
-            # #                 dcc.Graph(id='position-graph-FastTrend')
-            # #             ],
-            # #             style={
-            # #                 'display': 'flex',
-            # #                 'flex-direction': 'row'
-            # #             }
-            # #         ),
-            # #         html.Div(
-            # #             children=[
-            # #                 dcc.Graph(id='position-graph-PA'),
-            # #                 dcc.Graph(id='position-graph-LongShort')
-            # #             ],
-            # #             style={
-            # #                 'display': 'flex',
-            # #                 'flex-direction': 'row'
-            # #             }
-            # #         ),
-            # #         dcc.Interval(  # 定时器，60秒
-            # #             id='interval-component-position-graph',
-            # #             interval=1000 * 60,  # in milliseconds
-            # #             n_intervals=0
-            # #         ),
-            # #     ],
+                ],    
+                
+                style={
+                    'display': 'flex',      # 用于控制子元素排列方向的核心属性
+                    'flex-direction': 'row'     # 水平排列，从左到右	X轴正方向
+                }
+                # fluid=True
             # #     style={
             # #         'display': 'flex',
             # #         'flex-direction': 'column'
             # #     }
-            # # ),
+            
+            # #             style={
+            # #                 'display': 'flex',
+            # #                 'flex-direction': 'row'
+            # #             }
+            ),
+
             html.Br(),
 
             # [2] AIO信号的持仓ticker变化（合约换月）
@@ -177,14 +171,15 @@ def layout():
 # 【1】
 # Multiple components can update everytime interval gets fired.
 @callback(
-    Output(component_id='position-graph-AIO', component_property='figure'),
     Output(component_id='position-graph-SPA', component_property='figure'),
     Output(component_id='position-graph-PA', component_property='figure'),
-    Output(component_id='position-graph-FastTrend', component_property='figure'),
-    Output(component_id='position-graph-LongShort', component_property='figure'),
+    Output(component_id='position-graph-grouped', component_property='figure'),
+    # Output(component_id='position-graph-PA2', component_property='figure'),
+    #Output(component_id='position-graph-LongShort', component_property='figure'),
     Input(component_id='interval-component-position-graph', component_property='n_intervals'))
 def update_position_graph_in_interval(n):
     #
+    # [1] 持倉市值
     l_position_figs = []
     for name in L_POSITION_CHECKING_LIST:
         info = D_LIVE_POSITION_FILE_PATH.get(name)
@@ -197,14 +192,42 @@ def update_position_graph_in_interval(n):
         # pivot data
         df = _get_position_data(p_data, sort_by)
         l_columns = df.columns.to_list()
-        fig_title = f"{name} _ {str(len(l_columns))} _ {data_update_dt.strftime('%H:%M:%S')}"
-        if name == "AIO":
-            fig = _gen_position_fig(df, fig_title, width=900)
+        fig_title = f"{name}  {str(len(l_columns))} 个   {data_update_dt.strftime('%Y-%m-%d   %H:%M:%S')}"
+        if name == "SPA":
+            fig = _gen_position_fig(df, fig_title, width=1100, height=380)
         else:
-            fig = _gen_position_fig(df, fig_title, width=700)
+            # fig = _gen_position_fig(df, fig_title, width=600, height=350)
+            fig = _gen_position_fig(df, fig_title, width=1100, height=380)
         l_position_figs.append(fig)
-
-        logger.info(f'update position graph, {fig_title}')
+        print(f'update position graph, {fig_title}')
+        
+        
+    # [2] 持倉市值 - grouped
+    # { item_name: {group_name: volume, }, }
+    d_all_grouped_data = dict()
+    all_group_name = list()
+    for name in L_POSITION_CHECKING_LIST:
+        info = D_LIVE_POSITION_FILE_PATH.get(name)
+        p_data_grouped = info['grouped']
+        grouped_data = _get_position_grouped_data(p_data_grouped)
+        d_all_grouped_data[name] = grouped_data
+        group_name = list(grouped_data.keys())
+        all_group_name += group_name
+    # { group_name: {item_name: volume, }, }
+    all_group_name = list(set(all_group_name))
+    d_all_grouped_data_by_group_name = defaultdict(dict)
+    for _item_name, _d in d_all_grouped_data.items():
+        for _group_name in all_group_name:
+            if _group_name not in _d.keys():
+                d_all_grouped_data_by_group_name[_group_name][_item_name] = 0
+            else:
+                d_all_grouped_data_by_group_name[_group_name][_item_name] = _d[_group_name]
+    
+    item_count = len(L_POSITION_CHECKING_LIST)
+    fig = _gen_grouped_position_bar_fig(data=d_all_grouped_data_by_group_name, width=200 + 150 * item_count, height=600)
+    print(f'update grouped position graph')
+    l_position_figs.append(fig)       
+        
     return l_position_figs
 
 
@@ -230,6 +253,22 @@ def _get_position_data(p, sort_by='') -> pd.DataFrame:
     return df
 
 
+def _get_position_grouped_data(p) -> Dict[str, int]:
+    with open(p) as f:
+        l_lines = f.readlines()
+    
+    d_grouped_volume = dict()
+    for _line in l_lines:
+        _line = _line.strip()
+        if _line == '':
+            continue
+        _group_name = _line.split(',')[0]
+        _volume = _line.split(',')[1]
+        d_grouped_volume[_group_name] = int(float(_volume))
+    
+    return d_grouped_volume
+        
+
 # 获取 信号持仓的 更新时间
 def _get_position_update_time(p) -> datetime:
     with open(p) as f:
@@ -239,7 +278,7 @@ def _get_position_update_time(p) -> datetime:
 
 
 # 生成 信号持仓图
-def _gen_position_fig(df: pd.DataFrame, fig_title: str, width=700, height=250):
+def _gen_position_fig(df: pd.DataFrame, fig_title: str, width=700, height=350):
     l_index_sorted_by_value = df.index.to_list()
     l_columns = df.columns.to_list()
     fig = go.Figure()
@@ -253,12 +292,29 @@ def _gen_position_fig(df: pd.DataFrame, fig_title: str, width=700, height=250):
     # _max_y = max([max(df.values), abs(min(df.values))])
     for trader in l_columns:
         y = list(df.loc[:, trader].values).copy()
+        #y_sum_long = round(sum([_ for _ in y if _ > 0]) / 1000000, 1)
+        #y_sum_short = round(sum([_ for _ in y if _ < 0]) / 1000000, 1)
+        
+        y_sum_long = 0
+        y_sum_short = 0
+        d_y_value_in_key = df.loc[:, trader].to_dict()
+        for _k, _v in d_y_value_in_key.items():
+            if (_k.find('CFFEX') >= 0) and (_k.find('T') == 0):
+                continue
+            if _v > 0:
+                y_sum_long += _v
+            else:
+                y_sum_short += _v
+        y_sum_long = round(y_sum_long / 1000000, 2)
+        y_sum_short = round(y_sum_short / 1000000, 2)        
+        
+        _trader_name_with_value = f'{trader:12}{y_sum_long:>5}{y_sum_short:>7}'
         fig.add_trace(
             go.Scatter(
                 x=l_index_sorted_by_value,
                 y=y,
                 mode='lines',
-                name=trader,
+                name=_trader_name_with_value,
                 line=dict(
                     width=1,
                 ),
@@ -323,14 +379,14 @@ def _gen_position_fig(df: pd.DataFrame, fig_title: str, width=700, height=250):
         height=height,
         title=dict(
             text=fig_title,
-            font=dict(size=14),
-            y=1,  # 位置，坐标轴的长度看做1
+            font=dict(size=16),
+            y=0.98,  # 位置，坐标轴的长度看做1
             x=0.5,
             xanchor='center',
             yanchor='top',
         ),
         # margin=dict(l=40, r=0, t=40, b=30),
-        margin=dict(l=0, r=0, t=20, b=50),
+        margin=dict(l=0, r=0, t=30, b=50),
         yaxis_range=[-_y_size, _y_size],
         # 图例位置
         legend=dict(
@@ -340,12 +396,120 @@ def _gen_position_fig(df: pd.DataFrame, fig_title: str, width=700, height=250):
             # xanchor="left",  # x轴靠左
             # 3=0,
             # itemsizing='trace',   # trace 和 constant 两种设置, trace 小图形
-            font=dict(size=10),
+            font=dict(
+                size=14,
+                family="Courier New"
+            ),
             traceorder="normal",
         ),
     )
     return fig
 
+
+def _gen_grouped_position_bar_fig(data: Dict[str, Dict[str, float]], width=600, height=500):
+    #  data :  { group_name: {item_name: volume, }, }
+    
+    fig = go.Figure()    
+    # 记录 y 最大值
+    d_y_size_positive = defaultdict(float)
+    d_y_size_negative = defaultdict(float)
+    
+    for _group_name, _d in sorted(data.items()):
+        _l_items = list(_d.keys())
+        _l_volumes = list(_d.values())
+    
+        trace_name = f'{_group_name:16}' + '  '.join([f'{numerize.numerize(_):>8}' for _ in _l_volumes])
+        print(trace_name)
+        fig.add_trace(go.Bar(
+            name=trace_name, 
+            x=_l_items, 
+            y=_l_volumes,
+            # text=_l_volumes,
+            # texttemplate='%{text:.2s}',
+            # textposition='auto',
+            # textposition='outside',
+            # textangle=0,             # 保持水平显示
+            # textfont=dict(  # 统一字体设置
+            #     size=12,    # 固定字体大小
+            #     # color='white'
+            # )
+        ))
+        for _i in range(len(_l_items)):
+            _item = _l_items[_i]
+            _volume = _l_volumes[_i]
+            if _volume > 0:
+                d_y_size_positive[_item] += _volume
+            else:
+                d_y_size_negative[_item] += _volume
+    
+    _y_positive = max(d_y_size_positive.values())
+    _y_negative = min(d_y_size_negative.values())    
+    if _y_positive > -_y_negative:
+        _y_size = _y_positive * 1.1
+    else:
+        _y_size = -_y_negative * 1.1
+        
+    fig.update_layout(
+        # paper_bgcolor='rgba(0,0,0,0)',
+        barmode='relative',
+        plot_bgcolor='rgba(0,0,0,0)',  # 设置背景色为白色
+        width=width,
+        height=height,
+        yaxis_range=[-_y_size, _y_size],
+        margin=dict(l=0, r=0, t=20, b=20),
+        title=dict(
+            # text=fig_title,
+            font=dict(size=14),
+            y=1,  # 位置，坐标轴的长度看做1
+            x=0.5,
+            xanchor='center',
+            yanchor='top',
+        ),
+        uniformtext=dict(  # 全局统一文本设置
+            minsize=12,    # 最小字体尺寸
+            mode='show'    # 强制显示不缩小
+        ),
+        legend=dict(
+            # orientation="h",  # 开启水平显示
+            # yanchor="bottom",  # y轴顶部  bottom top
+            # y=0,
+            # xanchor="left",  # x轴靠左
+            # itemsizing='trace',   # trace 和 constant 两种设置, trace 小图形
+            # font=dict(size=10),
+            # traceorder="normal",
+            font=dict(
+                family="Courier New"
+            )
+        ),
+    )
+        
+    fig.update_yaxes(
+        showline=True,
+        linecolor='black',
+        mirror=True,
+        title='',
+        # 网格线
+        showgrid=True,
+        gridwidth=1,
+        gridcolor='gray',
+        griddash='dot',
+        zeroline=True,
+        zerolinecolor='Black', 
+        # zerolinecolor='rgba(0,0,0,0.5)',  # 使用透明度
+        zerolinewidth=1,
+        layer='above traces',         # 控制轴和网格线在数据轨迹的上方绘制
+    )
+    fig.update_xaxes(
+        # 轴线
+        showline=True,
+        linecolor='black',
+        mirror=True,
+        title='',
+        zeroline=True,
+    )
+        
+    return fig
+    
 
 # 【2】 AIO信号的持仓ticker变化（合约换月）
 @callback(

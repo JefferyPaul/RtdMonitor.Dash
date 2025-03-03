@@ -11,19 +11,18 @@ from dash import Dash, dcc, html, Input, Output
 import plotly.express as px
 import plotly.graph_objects as go
 
-
 # =====================    参数配置   ============================= #
 # 【1】 实时持仓 配置
 D_LIVE_POSITION_FILE_PATH = {
     "aio": {
         "data": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\AIO\data.csv',
         "update": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\AIO\_update.csv',
-        "sort": "Paper.A8"
+        "sort": "Paper.AIO"
     },
     "S8": {
         "data": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\S8\data.csv',
         "update": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\S8\_update.csv',
-        "sort": "Paper.S8PA"
+        "sort": "Paper.SPA"
     },
 }
 D_LIVE_POSITION_FILE_PATH_2 = {
@@ -35,33 +34,68 @@ D_LIVE_POSITION_FILE_PATH_2 = {
     "FastTrend": {
         "data": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\FastTrend\data.csv',
         "update": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\FastTrend\_update.csv',
-        "sort": "Paper.LS"
+        "sort": "Paper.FT"
     },
     "LongShort": {
         "data": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\LongShort\data.csv',
         "update": r'..\Data\OmsLivePosition\_Output_3_PositionPInitX\LongShort\_update.csv',
-        "sort": "Paper.FT"
+        "sort": "Paper.LS"
     }
 }
 
 # 【2】 PnLTracking 配置
 D_TRACKING = {
     "AIO": [
-        "Tracking.A8.230829", "Tracking.Paper.A8_F", "Tracking.Live.DongHang", "Tracking.Live.JinZiTa2",
-        "Tracking.Live.JuLi2", "Tracking.Live.JuLi3", "Tracking.Live.ShengShi23", "Tracking.Live.WangRongDao",
-        #"Tracking.Live.ShengShi8"
+        "Tracking.A", "Tracking.Paper.A8_F", "Tracking.Live.DongHang",
+        "Tracking.Live.JuLi2", "Tracking.Live.JuLi3", "Tracking.Live.WangRongDao",
+        # "Tracking.Live.ShengShi8"
     ],
     "PA": [
-        "Tracking.AnthonyPA.230920", "Tracking.Paper.AnthonyPA", "Tracking.Live.Anthony", "Tracking.Live.JiuGeXing",
-        "Tracking.Live.TangYin", "Tracking.Live.WanFeng", "Tracking.Live.WenYun2",
+        "Tracking.AnthonyPA", "Tracking.Paper.AnthonyPA", "Tracking.Live.Anthony", "Tracking.Live.JiuGeXing",
+        "Tracking.Live.TangYin", "Tracking.Live.WanFeng", "Tracking.Live.WenYun2", "Tracking.Live.ShengShi23",
     ],
     "FastTrend": [
-        "Tracking.FastTrend.230920", "Tracking.Paper.FastTrend", "Tracking.Live.LiMan2",
+        "Tracking.FastTrend", "Tracking.Paper.FastTrend", "Tracking.Live.LiMan2",
+    ],
+    "AnthonyPAFF": [
+        "Tracking.AnthonyPAFF", "Tracking.Live.AnthonyPAFF",
+        "Tracking.Paper.AnthonyPAFF", "Tracking.Paper.AnthonyPAFF_15Twap",
+        "Tracking.Paper.AnthonyPAFF_30Twap",
+        "Tracking.Paper.AnthonyPAFF_AnthonyInitX",
+        "Tracking.Paper.AnthonyPAFF_AnthonyInitX_15Twap",
+        "Tracking.Paper.AnthonyPAFF_AnthonyInitX_30Twap",
+    ],
+    "SPA": [
+        "Tracking.SPA", "Tracking.Live.ShengShi8", "Tracking.Paper.S8PA", "Tracking.Paper.S8PA_S8InitX",
+    ],
+    "LongShort": [
+        "Tracking.LongShort", "Tracking.Live.OuLa2", "Tracking.Paper.LongShort", "Tracking.Paper.LongShort_Oula2InitX",
     ]
 }
+D_TRACKING_2 = {
+    "Call_1": [
+        "Tracking.DLl@CalL28K#Product",
+        "Tracking.DLl@Test@CalL28K@30sTWAP@Paper.Call28K_30Twap",
+        "Tracking.DLl@CalL58KFF#Product",
+        "Tracking.DLl@Test@CalL58KFF@30sTWAP@Paper.Call58KFF_30Twap",
+        "Tracking.DLv@CalL28K#Product",
+        "Tracking.DLv@Test@CalL28K@30sTWAP@Paper.Call28K_30Twap",
+        "Tracking.DLv@CalL58KFF#Product",
+        "Tracking.DLv@Test@CalL58KFF@30sTWAP@Paper.Call58KFF_30Twap",
+    ],
+    "Call_2": [        
+        "Tracking.DLeb@CalL28KFF#Product",
+        "Tracking.DLeb@Test@CalL28KFF@30sTWAP@Paper.Call28KFF_30Twap",
+        "Tracking.DLeb@CalL58KFF#Product",
+        "Tracking.DLeb@Test@CalL58KFF@30sTWAP@Paper.Call58KFF_30Twap",
+        "Tracking.DLpp@CalL58KFF#Product",
+        "Tracking.DLpp@Test@CalL58KFF@30sTWAP@Paper.Call58KFF_30Twap",
+
+    ]    
+}
+
 PATH_TRACKING_DATA_ROOT = r'C:\D\_workspace_A2\AGP.RtdMonitor\Data\TrackingData'
 CHECKING_DAYS = 30
-
 
 # 【3】 持仓合约变更
 D_SIGNAL_ACTIVATE_TICKER_PATH = {
@@ -79,7 +113,6 @@ L_BARDATA_ACTIVATE_TICKER_INFO_PATH = [
         "path": r"..\Data\MostActivateTickers\_MostActivateTickers_2Longer_Today_Result.csv",
     },
 ]
-
 
 # =====================    dash 布置  ============================= #
 app = dash.Dash(
@@ -124,11 +157,39 @@ app.layout = html.Div(children=[
         html.H4('PnLTracking'),  # 标题
         html.Div(
             children=[
-                dcc.Graph(id='graph-tracking-1'),  #
-                dcc.Graph(id='graph-tracking-2'),  #
-                dcc.Graph(id='graph-tracking-3'),  #
-                dcc.Interval(            # 定时器，10分钟
+                html.Div(
+                    children=[
+                        dcc.Graph(id='graph-tracking-1'),  #
+                        dcc.Graph(id='graph-tracking-2'),  #
+                        dcc.Graph(id='graph-tracking-3'),  #        
+                    ]),
+                html.Div(
+                    children=[
+                        dcc.Graph(id='graph-tracking-4'),  #
+                        dcc.Graph(id='graph-tracking-5'),  #
+                        dcc.Graph(id='graph-tracking-6'),  #
+                    ]),
+                dcc.Interval(  # 定时器，10分钟
                     id='interval-component-tracking-graph',
+                    interval=1000 * 60 * 20,  # in milliseconds
+                    n_intervals=0
+                ),
+            ],
+            style={'display': 'flex', 'flex-direction': 'row'}
+        ),
+    ]),
+    
+    html.Div(children=[
+        html.H4('PnLTracking'),  # 标题
+        html.Div(
+            children=[
+                html.Div(
+                    children=[
+                        dcc.Graph(id='graph-tracking-7'),  #
+                        dcc.Graph(id='graph-tracking-8'),  #     
+                    ]),
+                dcc.Interval(  # 定时器，10分钟
+                    id='interval-component-tracking-graph-2',
                     interval=1000 * 60 * 20,  # in milliseconds
                     n_intervals=0
                 ),
@@ -220,6 +281,9 @@ def interval_update_position_graph_2(n):
     Output('graph-tracking-1', 'figure'),
     Output('graph-tracking-2', 'figure'),
     Output('graph-tracking-3', 'figure'),
+    Output('graph-tracking-4', 'figure'),
+    Output('graph-tracking-5', 'figure'),
+    Output('graph-tracking-6', 'figure'),
     Input('interval-component-tracking-graph', 'n_intervals'))
 def interval_update_tracking_graph(n):
     l_output = []
@@ -232,6 +296,26 @@ def interval_update_tracking_graph(n):
         fig_title = f"{name} _ {str(_data_max_date)} _ {str(len(l_columns))}"
         print(fig_title)
         fig = _gen_tracking_fig(df, fig_title)
+        l_output.append(fig)
+    return l_output
+
+
+# for call 
+@app.callback(
+    Output('graph-tracking-7', 'figure'),
+    Output('graph-tracking-8', 'figure'),
+    Input('interval-component-tracking-graph-2', 'n_intervals'))
+def interval_update_tracking_graph_2(n):
+    l_output = []
+    for n, name in enumerate(list(D_TRACKING_2.keys())):
+        keys = D_TRACKING_2[name]
+        # pivot data
+        df = _get_tracking_data(keys)
+        _data_max_date = max(df.index.to_list())
+        l_columns = df.columns.to_list()
+        fig_title = f"{name} _ {str(_data_max_date)} _ {str(len(l_columns))}"
+        print(fig_title)
+        fig = _gen_tracking_fig(df, fig_title, width=900, height=300)
         l_output.append(fig)
     return l_output
 
@@ -269,6 +353,12 @@ def _get_position_update_time(p) -> datetime:
 # 获取 ror净值数据
 def _get_tracking_data(keys: list) -> pd.DataFrame:
     checking_date = (datetime.today() - timedelta(days=CHECKING_DAYS)).strftime('%Y%m%d')
+    # PAFF 新上线，需要特殊处理 2023/11/25
+    # TODO 后续可以删除
+    if "Tracking.Live.AnthonyPAFF" in keys:
+        if checking_date < "20231123":
+            checking_date = "20231123"
+
     l_all_data = []
 
     _new_keys = []
@@ -297,19 +387,22 @@ def _get_tracking_data(keys: list) -> pd.DataFrame:
 
 
 # 生成 Tracking 净值图
-def _gen_tracking_fig(df: pd.DataFrame, fig_title: str):
+def _gen_tracking_fig(df: pd.DataFrame, fig_title: str, width=700, height=250):
     l_index_sorted_by_value = df.index.to_list()
     l_columns = df.columns.to_list()
     fig = go.Figure()
     # _max_y = 0
     for trader in l_columns:
         y = list(df.loc[:, trader].values)
+        trader_same_width = trader.ljust(30, ' ')
+
         fig.add_trace(
             go.Scatter(
                 x=l_index_sorted_by_value,
                 y=y,
                 mode='lines',
-                name=trader,
+                # name=trader,
+                name=trader_same_width,
                 line=dict(
                     width=1,
                 ),
@@ -367,8 +460,8 @@ def _gen_tracking_fig(df: pd.DataFrame, fig_title: str):
     fig.update_layout(
         # paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',  # 设置背景色为白色
-        width=550,
-        height=250,
+        width=width,
+        height=height,
         title=dict(
             text=fig_title,
             font=dict(size=14),
@@ -388,7 +481,8 @@ def _gen_tracking_fig(df: pd.DataFrame, fig_title: str):
             # xanchor="left",  # x轴靠左
             # 3=0,
             # itemsizing='trace',   # trace 和 constant 两种设置, trace 小图形
-            font=dict(size=10)
+            font=dict(size=12),
+            font_family="Courier New",  # 等宽字体
         ),
         # showlegend=False   # 隐藏图例元素
     )
@@ -400,6 +494,8 @@ def _gen_position_fig(df: pd.DataFrame, fig_title: str, width=600):
     l_index_sorted_by_value = df.index.to_list()
     l_columns = df.columns.to_list()
     fig = go.Figure()
+
+    l_columns.sort(key=lambda x: str(x).lower().replace('paper', '____'))
 
     if len(l_columns) == 0:
         return fig

@@ -1,115 +1,101 @@
+import os
+import sys
 from datetime import datetime, timedelta, date
 import json
+from typing import Dict, List
+import logging
 
 import pandas as pd
 import dash
-from dash import Dash, dcc, html, Input, Output, callback
+from dash import Dash, dcc, html, Input, Output, callback, State
 import plotly.graph_objects as go
 import dash_bootstrap_components as dbc
 
+from cache_config import configure_cache
+
+
 dash.register_page(
     __name__,
-    name='CancelRate'
+    name='test'
 )
 
+
 # =====================    参数配置   ============================= #
-D_DATA_FILE = {
-    "D1": r"Z:\Anthony\FillRate_concat@Jeffery\1.csv",
-    "D7": r"Z:\Anthony\FillRate_concat@Jeffery\7.csv"
-}
+
+P_DATA_ROOT = r'C:\D\_workspace_A2\AGP.RtdMonitor\AGP.TradingReview.HoldingPositionAnalysis\__PositionValue_Concat'
+# 设置缓存
+TIMEOUT = 60 * 60   # 缓存时间（秒）
+
+
+# ===============================                   ===============================
 
 
 # 页面布局
-def layout():
-    _ = html.Div(
-        children=[
-            # [1] 产品实时持仓对比图
-            html.H4('下单量/成交量'),  # 标题
-            html.H5('每日 21:05 更新; 刻度1.5 代表 slippage=0'),  # 标题
-            html.Div(
-                children=[
-                    dbc.Row(
-                        children=[
-                            dbc.Col(dcc.Graph(id='graph-cancel-rate-1')),
-                            dbc.Col(dcc.Graph(id='graph-cancel-rate-2')),
-                        ],
-                    ),
-                    # dbc.Row(
-                    #     children=[
-                    #         dbc.Col(dcc.Graph(id='position-graph-PA')),
-                    #     ],
-                    # ),
-                    dcc.Interval(
-                        # 定时器，60秒
-                        id='interval-component-position-graph',
-                        interval=1000 * 60 * 10,  # in milliseconds
-                        n_intervals=0
-                    ),
-                ],
+layout = html.Div(children=[
+    # 选择 策略
+    html.Div(
+        children=[            
+            html.H6('( T+1 09:50 更新 )'),  # 标题
+            '选择策略/产品：',
+            dcc.Dropdown(
+                id='funds-dropdown',
+                clearable=False
             ),
+        ],
+        style={'width': '10%', 'display': 'inline-block'},
+    ),
+    dcc.Graph(id='fund-graph'),
 
-            html.Br(),
-        ]
-    )
-    return _
+    dcc.Interval(
+        # 定时器
+        id='interval-component-read-data',
+        interval=1000 * TIMEOUT,  # in milliseconds
+        n_intervals=0
+    ),
+    dcc.Store(id='data-store')      # 用于储存数据的隐藏组件
 
+
+    # dbc.Row(
+    #     children=[
+    #         dbc.Col(dcc.Graph(id='graph-1')),
+    #     ],
+    # ),
+    # dbc.Row(
+    #     children=[
+    #         dbc.Col(dcc.Graph(id='position-graph-PA')),
+    #     ],
+    # ),
+
+    # html.Br(),
+    # dbc.Col(dcc.Textarea(id='data-time')),
+    # dcc.Interval(
+    #     # 定时器，60秒
+    #     id='interval-component-read-all-data',
+    #     interval=1000 * 60 * 60,  # in milliseconds
+    #     n_intervals=0
+    # ),
+])
 
 # =====================    dash操作  ============================= #
-# 【1】
-# Multiple components can update everytime interval gets fired.
-@callback(
-    Output(component_id='graph-cancel-rate-1', component_property='figure'),
-    Output(component_id='graph-cancel-rate-2', component_property='figure'),
-    Input(component_id='interval-component-position-graph', component_property='n_intervals'))
-def update_graph_in_interval(n):
-    l_figs = list()
-    for _key in D_DATA_FILE.keys():
-        p_data_file = D_DATA_FILE[_key]
-        # read data
-        df = pd.read_csv(p_data_file, names=['Date', 'Ticker', 'FillRate'])
+
+
+def _get_latest_data():
+    # 读取数据
+    d_all_data: Dict[str, dict] = dict()
+    for _file_name in os.listdir(P_DATA_ROOT):
+        _p_file = os.path.join(P_DATA_ROOT, _file_name)
+        _item_name = _file_name[:-4]
+        if not os.path.isfile(_p_file):
+            continue
+        _df = pd.read_csv(_p_file, names=['Date', 'Ticker', 'NetValue', 'LongValue', 'ShortValue'])
         # df['Date'] = df['Date'].apply(func=lambda x: datetime.strptime(str(x), '%Y%m%d'))
-        df['Date'] = df['Date'].apply(func=lambda x: str(x))
-        # df['CancelRate'] = 1 - df['FillRate']
-        # 最小值是1, 大于2 代表 slippage 较大
-        df['CancelRate'] = 1 / df['FillRate']
-        df = df.pivot_table(values='CancelRate', index='Date', columns='Ticker', aggfunc='mean')
-        # df = df.fillna('bfill')
-
-        # 筛选 排序
-        l_columns = df.columns.to_list().copy()
-        l_columns_selected_sorted = list()
-        l_columns_selected = list()
-        for ticker in l_columns:
-            _d_ticker_data = df.loc[:, ticker].to_dict()
-            # 去除 nan
-            _d_ticker_data = {
-                _date: _v
-                for _date, _v in _d_ticker_data.items()
-                if _v >= 0
-            }
-            if len(_d_ticker_data) == 0:
-                continue
-            # 去除 每一天都小于 0.5 的情况
-            # if len([_ for _ in _d_ticker_data.values() if _ < 2]) == 0:
-            #     continue
-            _last_date = max(_d_ticker_data.keys())
-            _last_value = _d_ticker_data[_last_date]
-            l_columns_selected_sorted.append([ticker, (_last_date, _last_value)])
-        l_columns_selected_sorted.sort(key=lambda x: x[1], reverse=True)
-        l_columns_selected = [_[0] for _ in l_columns_selected_sorted]
-
-        fig = _gen_cancel_rate_fig(df.loc[:, l_columns_selected], fig_title=_key, width=700, height=800)
-        l_figs.append(fig)
-        print(f'update graph, {_key}')
-
-    #
-        # l_position_figs.append(fig)
-    # return l_position_figs
-    return l_figs
+        _df['Date'] = _df['Date'].apply(func=lambda x: str(x))
+        d_all_data[_item_name] = _df.to_dict('records')
+    return d_all_data
 
 
 # 生成 信号持仓图
-def _gen_cancel_rate_fig(df: pd.DataFrame, fig_title: str, width=1000, height=400):
+def _gen_fig(df: pd.DataFrame, fig_title: str, width=1000, height=400):
     l_index_sorted_by_value = df.index.to_list()
     l_columns = df.columns.to_list()
     fig = go.Figure()
@@ -171,16 +157,18 @@ def _gen_cancel_rate_fig(df: pd.DataFrame, fig_title: str, width=1000, height=40
         tickangle=-90,
         # 网格线
         showgrid=True,
-        gridwidth=1,
+        gridwidth=0.5,
         gridcolor='gray',
         # gridcolor='Black',
         griddash='dot',
-        # zeroline=False,
+        # zeroline=True,
+        # zerolinecolor='black',
+        # zerolinewidth=1.5,
     )
     fig.update_yaxes(
         showline=True,
         linecolor='black',
-        linewidth=1,
+        linewidth=0.5,
         mirror=True,
         title='',
         # 网格线
@@ -188,10 +176,13 @@ def _gen_cancel_rate_fig(df: pd.DataFrame, fig_title: str, width=1000, height=40
         gridwidth=1,
         gridcolor='gray',
         griddash='dot',
-        zeroline=False,
+        # zeroline=True,
+        zeroline=True,
+        zerolinecolor='black',
+        zerolinewidth=1,
     )
 
-    _yaxis_max = int(_max_y) + 1
+    # _yaxis_max = int(_max_y) + 1
     fig.update_layout(
         # paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',  # 设置背景色为白色
@@ -208,7 +199,7 @@ def _gen_cancel_rate_fig(df: pd.DataFrame, fig_title: str, width=1000, height=40
         # margin=dict(l=40, r=0, t=40, b=30),
         margin=dict(l=0, r=0, t=20, b=50),
         # yaxis_range=[-_y_size, _y_size],
-        yaxis_range=[0, _yaxis_max],
+        # yaxis_range=[0, _yaxis_max],
         # 图例位置
         legend=dict(
             # orientation="h",  # 开启水平显示
@@ -221,7 +212,44 @@ def _gen_cancel_rate_fig(df: pd.DataFrame, fig_title: str, width=1000, height=40
             traceorder="normal",
         ),
     )
-    fig.update_traces(hoverinfo='text+name', mode='lines+markers')
+    # fig.update_traces(hoverinfo='text+name', mode='lines+markers')
+    fig.update_traces(mode='lines+markers')
 
     return fig
 
+
+def init_callbacks(app):
+    cache = configure_cache(app)
+
+    @cache.memoize(timeout=TIMEOUT)
+    def get_latest_data_with_cache():
+        return _get_latest_data()
+
+    @callback(
+        Output('data-store', 'data'),
+        Output('funds-dropdown', 'options'),
+        Output('funds-dropdown', 'value'),
+        Input(component_id='interval-component-read-data', component_property='n_intervals'),
+    )
+    def update_data(n):
+        print(f'in update_data(), {n}')
+        _data: Dict[str, pd.dict] = get_latest_data_with_cache()
+        _keys = list(_data.keys())
+        _keys.sort(key=lambda x: x.lower())
+        return _data, _keys, _keys[0]
+
+    @callback(
+        Output('fund-graph', 'figure'),
+        Input('funds-dropdown', 'value'),
+        State('data-store', 'data')
+    )
+    def get_fund_graph(fund_name, data: Dict[str, pd.DataFrame]):
+        fund_data: dict or None = data.get(fund_name)
+        if not fund_data:
+            return _gen_fig(pd.DataFrame({}), fig_title='', width=1000, height=500)
+        df = pd.DataFrame(fund_data)
+        df_2 = df.set_index(['Date', 'Ticker'])
+        grouped_date = df_2.groupby('Date')
+        grouped_date_sum = grouped_date.sum()
+
+        return _gen_fig(grouped_date_sum, fig_title=fund_name, width=1000, height=500)
